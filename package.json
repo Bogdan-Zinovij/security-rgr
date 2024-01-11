@@ -1,0 +1,16 @@
+{
+    "name": "rgr",
+    "version": "1.0.0",
+    "description": "",
+    "type": "module",
+    "scripts": {
+        "start:server": "nodemon ./server.js",
+        "start:client": "nodemon ./client.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}

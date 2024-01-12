@@ -5,7 +5,9 @@ import {
   generateAsymmetricalKeys,
   generateRandomBytes,
   decodeDataBySessionKey,
+  createHash,
 } from "./functions.js";
+import fs from "fs";
 
 const PORT = 3000;
 const sessions = new Map();
@@ -126,17 +128,50 @@ const server = net.createServer(async (socket) => {
       "\n----- Secured connection is succesfully established! -----\n"
     );
 
-    socket.on("data", (data) => {
-      const dataFromClient = data.toString();
-      const parsedData = JSON.parse(dataFromClient);
-      console.log("Message from client:", parsedData.data);
-    });
+    const CHUNK_SIZE = 256;
+    const FILE_PATH = "./file.txt";
 
-    socket.write(
-      JSON.stringify({
-        data: "Hello from server by secured connection!",
-      })
-    );
+    let offset = 0;
+    let prevChunkHash = null;
+
+    const sendFileChunks = () => {
+      const chunk = fileData.slice(offset, offset + CHUNK_SIZE / 8); // convert chunk size to bytes
+      const encryptedChunk = encodeDataBySessionKey(
+        chunk.toString(),
+        sessions.get(socket).sessionKey
+      );
+
+      const chunkHash = createHash(
+        prevChunkHash ? prevChunkHash + chunk : chunk
+      );
+
+      console.log(`Encrypted chunk: ${encryptedChunk}`);
+
+      // if (offset !== 64) {
+      socket.write(
+        JSON.stringify({
+          action: "FILE_CHUNK",
+          data: {
+            chunk: encryptedChunk,
+            hash: chunkHash,
+          },
+        })
+      );
+      // }
+
+      prevChunkHash = chunkHash;
+      offset += CHUNK_SIZE / 8;
+
+      if (offset < fileData.length) {
+        setTimeout(sendFileChunks, 100);
+      } else {
+        console.log("File sent to client.");
+      }
+    };
+
+    const fileData = fs.readFileSync(FILE_PATH);
+
+    setTimeout(sendFileChunks, 0);
   }
 
   socket.on("end", () => {

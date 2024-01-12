@@ -63,3 +63,13 @@ export function decodeDataBySessionKey(data, sessionKey) {
 
   return decrypted;
 }
+
+export function createHash(message) {
+  const sha256Hash = crypto.createHash("sha256");
+
+  sha256Hash.update(message, "utf-8");
+
+  const hashedMessage = sha256Hash.digest("hex");
+
+  return hashedMessage;
+}

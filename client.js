@@ -4,7 +4,9 @@ import {
   generateRandomBytes,
   encodeDataBySessionKey,
   decodeDataBySessionKey,
+  createHash,
 } from "./functions.js";
+import fs from "fs";
 
 const PORT = 3000;
 const sessionData = {};
@@ -116,20 +118,60 @@ const client = net.createConnection({ port: PORT }, async () => {
       "\n----- Secured connection is succesfully established! -----\n"
     );
 
-    client.on("data", (data) => {
-      const dataFromServer = data.toString();
-      const parsedData = JSON.parse(dataFromServer);
-      console.log("Message from server:", parsedData.data);
+    const resultFilepath = "received_file.txt";
+    let prevChunkHash = null;
+
+    fs.unlink(resultFilepath, (err) => {
+      if (err) {
+        console.error(`Error deleting file:`);
+      }
     });
 
-    client.write(
-      JSON.stringify({
-        data: "Hello from client by secured connection!",
-      })
-    );
+    client.on("data", (message) => {
+      const parsedData = JSON.parse(message.toString());
+      switch (parsedData.action) {
+        case "FILE_CHUNK":
+          console.log("\n---------- ACTION: FILE_CHUNK ----------");
+
+          const { chunk, hash } = parsedData.data;
+
+          const decryptedChunk = decodeDataBySessionKey(
+            chunk,
+            sessionData.sessionKey
+          );
+
+          console.log(`Decrypted chunk: ${decryptedChunk}`);
+
+          const calculatedHash = createHash(
+            prevChunkHash ? prevChunkHash + decryptedChunk : decryptedChunk
+          );
+
+          console.log(
+            `Calculated hash: ${calculatedHash}\nReceived hash:   ${hash}`
+          );
+
+          if (calculatedHash === hash) {
+            console.log("Chunk integrity verified.");
+
+            fs.appendFileSync(
+              resultFilepath,
+              Buffer.from(decryptedChunk, "utf-8"),
+              "utf8"
+            );
+          } else {
+            console.log("Error: The received chunk doesn't match its hash!");
+          }
+
+          prevChunkHash = calculatedHash;
+          break;
+      }
+    });
   }
 
   client.on("end", () => {
     console.log("Client closed connection");
   });
 });
+
+// повідомлення + хеш для перевірки чи нічого в повідомленні не втратилося
+// додати шифрування у зашифрований канал
